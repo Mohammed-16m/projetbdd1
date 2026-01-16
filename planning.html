@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon Planning - Portail Universitaire</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Mon Espace</h2>
+        <a href="admin.html" id="link-admin">Tableau de bord</a>
+        <a href="planning.html" class="active">Mon Calendrier</a>
+        <a href="#">Mes Notes</a>
+        <a href="login.html" class="logout">Déconnexion</a>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div>
+                <h1>Mon Planning d'Examens</h1>
+                <p style="color: var(--text-muted);">Session Normale - Semestre 1</p>
+            </div>
+            <button class="btn btn-primary" onclick="window.print()">Imprimer Convocation</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 25px; border-left: 5px solid var(--primary-color);">
+            <p><strong>Étudiant :</strong> AMINE Mohamed (L3 Informatique)</p>
+            <p><strong>Groupe :</strong> 02 / <strong>Section :</strong> A</p>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Heure</th>
+                        <th>Module</th>
+                        <th>Lieu (Salle)</th>
+                        <th>Place n°</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><b>Lundi 12 Janvier</b></td>
+                        <td>09:00 - 10:30</td>
+                        <td>Algorithmique Avancée</td>
+                        <td><span class="badge badge-success">Amphi A</span></td>
+                        <td><b>42</b></td>
+                    </tr>
+                    <tr>
+                        <td><b>Mardi 13 Janvier</b></td>
+                        <td>14:00 - 15:30</td>
+                        <td>Réseaux de neurones</td>
+                        <td><span class="badge badge-success">Salle 102</span></td>
+                        <td><b>08</b></td>
+                    </tr>
+                    <tr>
+                        <td><b>Jeudi 15 Janvier</b></td>
+                        <td>11:00 - 12:30</td>
+                        <td>Génie Logiciel</td>
+                        <td><span class="badge badge-success">Amphi B</span></td>
+                        <td><b>115</b></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #190c6e; color: #bbbed4; border-radius: 8px; font-size: 0.9rem;">
+            <strong>Rappel :</strong> Présentez-vous 15 minutes avant le début de l'épreuve muni de votre carte d'étudiant.
+        </div>
+    </div>
+</body>
+</html>
