@@ -1,4 +1,5 @@
 <?php
+ob_start(); // À AJOUTER ICI
 session_start();
 require_once 'db.php';
 
