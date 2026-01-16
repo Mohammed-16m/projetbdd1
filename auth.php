@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once 'db.php';
-require_once 'traceur.php'; // Important pour enregistrer le résultat de la connexion
 
 if (isset($_POST['username']) && isset($_POST['password'])) {
     $u = $_POST['username'];
@@ -19,15 +18,14 @@ if (isset($_POST['username']) && isset($_POST['password'])) {
         $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $user['role'];
 
-        // TRACEUR : Enregistrer la connexion RÉUSSIE
-        tracerVisite("Connexion RÉUSSIE : Compte " . $user['role'] . " (" . $u . ")");
-
         // Redirection selon le rôle
+        // Note : J'ai ajouté 'chef_dep' car c'est ce qu'on a mis dans TiDB
         switch($user['role']) {
             case 'admin':
                 header("Location: admin.php");
                 break;
             case 'chef':
+            case 'chef_dep': // Ajout de cette sécurité
                 header("Location: chef_dept.php");
                 break;
             case 'doyen':
@@ -44,15 +42,13 @@ if (isset($_POST['username']) && isset($_POST['password'])) {
         }
         exit();
     } else {
-        // TRACEUR : Enregistrer l'ÉCHEC (très utile pour voir si le prof se trompe de mot de passe)
-        tracerVisite("ÉCHEC Connexion : Tentative avec login '" . htmlspecialchars($u) . "'");
-
-        // Redirection vers login.php (et non .html)
+        // Suppression de la ligne tracerVisite(...) qui causait l'erreur
+        
+        // Redirection vers login.php avec message d'erreur
         header("Location: login.php?error=1");
         exit();
     }
 } else {
-    // Si on accède au fichier sans passer par le formulaire
     header("Location: login.php");
     exit();
 }
