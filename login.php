@@ -6,8 +6,7 @@ session_start();
 require_once 'db.php';
 
 
-// On enregistre que le prof est sur la page de connexion
-tracerVisite("Page de Connexion");
+;
 
 // Si déjà connecté, on le redirige vers son espace
 if (isset($_SESSION['role'])) {
