@@ -9,20 +9,20 @@ try {
     $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
     
     $options = [
-        PDO::ATTR_ERRMODE            => PDO::ATTR_ERRMODE_EXCEPTION,
+        // Correction ici : il faut bien PDO:: devant chaque constante
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        // On force le SSL mais on désactive la vérification stricte du certificat
-        // car le serveur Docker de Render n'a pas le fichier CA de TiDB
+        // Options pour la sécurité SSL de TiDB
         PDO::MYSQL_ATTR_SSL_CA       => true,
         PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
     ];
 
     $pdo = new PDO($dsn, $user, $pass, $options);
-
 } catch (PDOException $e) {
     die("Erreur de connexion : " . $e->getMessage());
 }
 ?>
+
 
 
 
