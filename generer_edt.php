@@ -57,6 +57,13 @@ try {
                         if ($cap_cumulee >= $total_a_placer) break;
                     }
                 }
+                foreach ($etudiants_groupe as $etudiant) {
+    // On met à jour l'inscription de l'étudiant pour ce module précis
+    $stmt = $pdo->prepare("UPDATE inscriptions 
+                           SET salle_id = ? 
+                           WHERE etudiant_id = ? AND module_id = ?");
+    $stmt->execute([$salle_id, $etudiant['id'], $module_id]);
+}
 
                 if ($cap_cumulee >= $total_a_placer) {
                     $copie_etudiants = $etudiants_a_placer;
