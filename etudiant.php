@@ -16,16 +16,13 @@ $user_id = $_SESSION['user_id'];
  * On sélectionne les examens UNIQUEMENT si le département a validé (etat_planning = 'valide')
  * On fait le lien entre l'inscription de l'étudiant et la salle assignée par l'optimiseur.
  */
-$query = "SELECT e.date_heure, m.nom as module, l.nom_salle as salle, l.batiment, d.etat_planning
-          FROM examens e
+// Requête de TEST (ignore la validation du chef)
+$query = "SELECT e.date_heure, m.nom as module, l.nom_salle as salle, l.batiment
+          FROM inscriptions i
+          JOIN examens e ON i.module_id = e.module_id
           JOIN modules m ON e.module_id = m.id
           JOIN lieu_examen l ON e.salle_id = l.id
-          JOIN formations f ON m.formation_id = f.id
-          JOIN departements d ON f.dept_id = d.id
-          JOIN inscriptions i ON i.module_id = m.id
-          WHERE i.etudiant_id = ? 
-          AND d.etat_planning = 'valide'
-          ORDER BY e.date_heure ASC";
+          WHERE i.etudiant_id = ?";
 
 try {
     $stmt = $pdo->prepare($query);
