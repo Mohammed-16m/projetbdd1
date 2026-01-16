@@ -3,6 +3,14 @@ require_once 'db.php';
 set_time_limit(600); 
 
 try {
+    echo "Nettoyage de la base de données...<br>";
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+    $pdo->exec("TRUNCATE TABLE inscriptions;");
+    $pdo->exec("TRUNCATE TABLE etudiants;");
+    $pdo->exec("TRUNCATE TABLE professeurs;");
+    $pdo->exec("TRUNCATE TABLE users;");
+    $pdo->exec("TRUNCATE TABLE lieu_examen;");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
     echo "<h2>🚀 Remplissage par Département (500 étu / 5 mod par Dept)</h2>";
 
     // 1. AJOUT DES 30 SALLES TD (si pas déjà fait en SQL)
