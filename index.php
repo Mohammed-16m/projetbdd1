@@ -3,8 +3,7 @@ session_start();
 require_once 'db.php';
 
 
-// On enregistre le passage du prof sur l'accueil
-tracerVisite("Accueil - Vitrine");
+
 
 // Si déjà connecté, redirection automatique vers son espace
 if (isset($_SESSION['role'])) {
