@@ -1,21 +1,83 @@
 <?php
-// ... ton début de code ...
-$stmt = $pdo->prepare($query);
-$stmt->execute([$user_id]);
-$mes_examens = $stmt->fetchAll();
+// 1. D'abord démarrer la session
+session_start();
 
-// AJOUTE ÇA POUR VOIR LE PROBLÈME :
-if (count($mes_examens) == 0) {
-    echo "<div style='background:black; color:lime; padding:10px; font-family:monospace;'>";
-    echo "--- DEBUG MODE ---<br>";
-    echo "ID Étudiant connecté : " . $user_id . "<br>";
-    
-    $checkInsc = $pdo->prepare("SELECT COUNT(*) FROM inscriptions WHERE etudiant_id = ?");
-    $checkInsc->execute([$user_id]);
-    echo "Nombre d'inscriptions trouvées : " . $checkInsc->fetchColumn() . "<br>";
+// 2. ENSUITE inclure la connexion (C'est ici que $pdo est créé)
+require_once 'db.php'; 
 
-    $checkEx = $pdo->query("SELECT COUNT(*) FROM examens")->fetchColumn();
-    echo "Nombre total d'examens en base : " . $checkEx . "<br>";
-    echo "------------------</div>";
+// 3. Vérifier que la connexion existe bien
+if (!isset($pdo)) {
+    die("La variable pdo n'est pas définie. Vérifiez votre fichier db.php.");
+}
+
+// 4. Vérifier l'accès
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'etudiant') {
+    header("Location: login.php"); 
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+// 5. La requête (Version simplifiée pour tester l'affichage)
+try {
+    $query = "SELECT e.date_heure, m.nom as module, l.nom_salle as salle, l.batiment
+              FROM inscriptions i
+              JOIN modules m ON i.module_id = m.id
+              JOIN examens e ON m.id = e.module_id
+              JOIN lieu_examen l ON e.salle_id = l.id
+              JOIN formations f ON m.formation_id = f.id
+              JOIN departements d ON f.dept_id = d.id
+              WHERE i.etudiant_id = ? AND d.etat_planning = 'valide'
+              ORDER BY e.date_heure ASC";
+
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$user_id]);
+    $mes_examens = $stmt->fetchAll();
+} catch (PDOException $e) {
+    die("Erreur SQL : " . $e->getMessage());
 }
 ?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mon Planning</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="main-content">
+        <h1>Mes Examens</h1>
+        
+        <?php if (count($mes_examens) > 0): ?>
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Module</th><th>Salle</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach($mes_examens as $ex): ?>
+                    <tr>
+                        <td><?php echo $ex['date_heure']; ?></td>
+                        <td><?php echo $ex['module']; ?></td>
+                        <td><?php echo $ex['salle']; ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <p>Aucun examen trouvé ou planning non validé par le chef.</p>
+            
+            <div style="font-size:12px; color:gray; margin-top:50px; border-top:1px solid #ccc;">
+                DEBUG : <br>
+                ID Étudiant : <?php echo $user_id; ?><br>
+                <?php
+                // Vérifions si le département est bien validé en base
+                $check = $pdo->query("SELECT nom, etat_planning FROM departements")->fetchAll();
+                echo "États des départements : ";
+                print_r($check);
+                ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
