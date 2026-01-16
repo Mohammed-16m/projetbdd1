@@ -15,10 +15,9 @@ try {
         PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
     ];
 
-    $pdo = new PDO($dsn, $user, $pass, $options);
+   $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (PDOException $e) {
-    // On utilise error_log pour ne pas afficher l'erreur en public mais garder une trace
-    error_log($e->getMessage());
-    die("Erreur de connexion à la base de données.");
+    die("Erreur de connexion : " . $e->getMessage());
 }
-// NE PAS METTRE DE ?> 
+ ?> 
+
