@@ -1,7 +1,6 @@
 <?php
 session_start();
 require_once 'db.php';
-require_once 'traceur.php';
 
 // 1. SÉCURITÉ : Admin et Doyen autorisés
 $roles_autorises = ['admin', 'doyen'];
