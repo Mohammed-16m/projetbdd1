@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 
 session_start();
 require_once 'db.php';
-require_once 'traceur.php';
+
 
 // On enregistre que le prof est sur la page de connexion
 tracerVisite("Page de Connexion");
