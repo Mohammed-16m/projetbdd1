@@ -12,9 +12,9 @@ try {
         PDO::ATTR_ERRMODE            => PDO::ATTR_ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         // C'EST CETTE LIGNE QUI CORRIGE L'ERREUR 1105 :
-        PDO::MYSQL_ATTR_SSL_CA       => true, 
+        //PDO::MYSQL_ATTR_SSL_CA       => true, 
         // Sur certains serveurs, si 'true' ne marche pas, on peut mettre :
-        // PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+         PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
     ];
 
     $pdo = new PDO($dsn, $user, $pass, $options);
@@ -23,3 +23,4 @@ try {
     die("Erreur de connexion : " . $e->getMessage());
 }
 ?>
+
