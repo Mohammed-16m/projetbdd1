@@ -21,10 +21,11 @@ $query = "SELECT e.date_heure, m.nom as module, l.nom_salle as salle, l.batiment
           JOIN modules m ON i.module_id = m.id 
           JOIN formations f ON m.formation_id = f.id
           JOIN departements d ON f.dept_id = d.id
-          JOIN examens e ON (m.id = e.module_id AND i.salle_id = e.salle_id) 
+          JOIN examens e ON m.id = e.module_id 
           JOIN lieu_examen l ON e.salle_id = l.id 
-          WHERE i.etudiant_id = ? AND d.etat_planning = 'valide'
-          ORDER BY e.date_heure ASC";
+          WHERE i.etudiant_id = ? 
+          AND d.etat_planning = 'valide'
+          GROUP BY m.id"; // On groupe par module pour éviter les doublons
 
 try {
     $stmt = $pdo->prepare($query);
