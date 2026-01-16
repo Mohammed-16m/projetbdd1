@@ -1,0 +1,260 @@
+/* =========================================
+   1. VARIABLES & RESET (ADN LOGIN)
+   ========================================= */
+:root {
+    --bg-dark: #020617;      /* Noir profond */
+    --card-bg: rgba(255, 255, 255, 0.04);
+    --primary: #4361ee;
+    --purple: #7209b7;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: rgba(255, 255, 255, 0.08);
+    --radius: 24px;
+    --success: #10b981;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    display: flex;
+    min-height: 100vh;
+    /* Petit reflet en haut comme sur l'index */
+    background-image: radial-gradient(circle at 50% 0%, rgba(67, 97, 238, 0.1) 0%, transparent 50%);
+}
+
+/* =========================================
+2. SIDEBAR PREMIUM
+   ========================================= */
+.sidebar {
+    width: 280px;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    padding: 40px 24px;
+    position: fixed;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.sidebar h2 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #fff, var(--primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 50px;
+    padding-left: 10px;
+}
+
+.sidebar a {
+    text-decoration: none;
+    color: var(--text-muted);
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    border-radius: 16px;
+    font-weight: 500;
+    transition: 0.3s ease;
+}
+
+.sidebar a:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.sidebar a.active {
+    background: linear-gradient(90deg, var(--primary), var(--purple));
+    color: white;
+    box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+}
+
+.logout {
+    margin-top: auto;
+    color: #f43f5e !important;
+    background: rgba(244, 63, 94, 0.05) !important;
+}
+
+.logout:hover {
+    background: #f43f5e !important;
+    color: white !important;
+}
+
+/* =========================================
+   3. CONTENU PRINCIPAL
+   ========================================= */
+.main-content {
+    flex: 1;
+    margin-left: 280px;
+    padding: 50px 60px;
+    width: calc(100% - 280px);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+/* =========================================
+   4. CARTES & STATS
+   ========================================= */
+.card {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    padding: 30px;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(67, 97, 238, 0.3);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+.value {
+    font-size: 2.8rem;
+    font-weight: 800;
+    margin: 10px 0;
+    background: linear-gradient(to bottom, #fff, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* =========================================
+   5. TABLEAU & FORMULAIRES
+   ========================================= */
+.table-container {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 20px;
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    padding: 20px;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--border);
+    color: #cbd5e1;
+}
+
+tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+input[type="text"], select, input[type="datetime-local"] {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    padding: 12px 18px;
+    border-radius: 12px;
+    color: white;
+    outline: none;
+}
+
+/* =========================================
+   6. BOUTONS, BADGES & PROGRESS
+   ========================================= */
+.btn {
+    padding: 14px 28px;
+    border-radius: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.3s;
+    border: none;
+}
+
+.btn-primary {
+    background: linear-gradient(90deg, var(--primary), var(--purple));
+    color: white;
+    box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+}
+
+.btn-primary:hover {
+    filter: brightness(1.2);
+    transform: scale(1.03);
+}
+
+.badge {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+
+.progress-container {
+    background: rgba(255, 255, 255, 0.05);
+    height: 10px;
+    border-radius: 20px;
+    margin: 20px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--purple));
+    border-radius: 20px;
+    width: 0%;
+    transition: width 0.4s ease;
+}
+
+/* =========================================
+   7. MODALE DARK
+   ========================================= */
+.modal-content {
+    background: #0f172a !important; /* Fond sombre pour la modale */
+    border: 1px solid var(--border);
+    color: white;
+}
+
+.form-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
