@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
-require_once 'traceur.php';
+
 
 // On enregistre le passage du prof sur l'accueil
 tracerVisite("Accueil - Vitrine");
