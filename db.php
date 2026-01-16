@@ -1,23 +1,25 @@
 <?php
-// Fichier : db.php
-
-// 1. "MySQL Hostname" dans InfinityFree
-$host = 'gateway01.eu-central-1.prod.aws.tidbcloud.com'; 
-
-// 2. "MySQL Database Name" (Attention au préfixe epiz_... !)
-$dbname = 'test';    
-
-// 3. "MySQL Username"
-$username = '2rT9U4KNKfbFsx3.root';          
-
-// 4. "vPanel Password" (Clique sur "Show" pour le voir)
-$password = '3n0fbS42AlIYrrlt';    
+$host = 'gateway01.eu-central-1.prod.aws.tidbcloud.com'; // ex: gateway01.eu-central-1.prod.aws.tidbcloud.com
+$port = '4000';
+$db   = 'test'; 
+$user = '2rT9U4KNKfbFsx3.root';
+$pass = '3n0fbS42AlIYrrlt';
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    // echo "Connexion réussie !"; // Tu pourras décommenter ça pour tester
+    $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+    
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ATTR_ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        // C'EST CETTE LIGNE QUI CORRIGE L'ERREUR 1105 :
+        PDO::MYSQL_ATTR_SSL_CA       => true, 
+        // Sur certains serveurs, si 'true' ne marche pas, on peut mettre :
+        // PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+    ];
+
+    $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (PDOException $e) {
+    // En cas d'erreur, on l'affiche proprement pour déboguer
     die("Erreur de connexion : " . $e->getMessage());
 }
 ?>
