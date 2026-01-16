@@ -10,14 +10,14 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'etudiant') {
 $user_id = $_SESSION['user_id'];
 
 try {
-    // 2. Récupérer les examens de l'étudiant UNIQUEMENT si validés
-    // Note : On utilise f.nom, m.nom, l.nom pour correspondre à ton style
+    // On ajoute la condition i.salle_id = e.salle_id dans le JOIN
+    // Cela garantit que l'étudiant ne voit QUE sa salle assignée
     $query = "SELECT f.nom as formation, m.nom as module, e.date_heure, l.nom as salle, l.batiment
               FROM inscriptions i 
               JOIN modules m ON i.module_id = m.id 
               JOIN formations f ON m.formation_id = f.id
               JOIN departements d ON f.dept_id = d.id
-              JOIN examens e ON m.id = e.module_id 
+              JOIN examens e ON (m.id = e.module_id AND i.salle_id = e.salle_id) 
               JOIN lieu_examen l ON e.salle_id = l.id 
               WHERE i.etudiant_id = ? AND d.etat_planning = 'valide'
               ORDER BY e.date_heure ASC";
