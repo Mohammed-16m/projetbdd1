@@ -46,7 +46,7 @@ try {
 <body>
     <div class="sidebar">
         <h2>ExamOptima</h2>
-        <a href="chef_dep.php">🏠 Dashboard</a>
+        <a href="chef_dept.php">🏠 Dashboard</a>
         <a href="enseignant.php" class="active">👨‍🏫 Mes Enseignants</a>
         <a href="logout.php" class="logout">Déconnexion</a>
     </div>
