@@ -17,15 +17,15 @@ $user_id = $_SESSION['user_id'];
  * On fait le lien entre l'inscription de l'étudiant et la salle assignée par l'optimiseur.
  */
 $query = "SELECT e.date_heure, m.nom as module, l.nom_salle as salle, l.batiment, d.etat_planning
-          FROM inscriptions i 
-          JOIN modules m ON i.module_id = m.id 
+          FROM examens e
+          JOIN modules m ON e.module_id = m.id
+          JOIN lieu_examen l ON e.salle_id = l.id
           JOIN formations f ON m.formation_id = f.id
           JOIN departements d ON f.dept_id = d.id
-          JOIN examens e ON m.id = e.module_id 
-          JOIN lieu_examen l ON e.salle_id = l.id 
+          JOIN inscriptions i ON i.module_id = m.id
           WHERE i.etudiant_id = ? 
           AND d.etat_planning = 'valide'
-          GROUP BY m.id"; // On groupe par module pour éviter les doublons
+          ORDER BY e.date_heure ASC";
 
 try {
     $stmt = $pdo->prepare($query);
