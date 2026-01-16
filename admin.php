@@ -12,8 +12,8 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $roles_autorises))
 $role_actuel = $_SESSION['role'];
 
 // 2. TRACAGE : On identifie qui regarde quoi
-$titre_trace = ($role_actuel === 'doyen') ? "Vue Doyen" : "Vue Admin";
-tracerVisite($titre_trace);
+
+
 
 // 3. RÉCUPÉRATION DES DONNÉES
 try {
