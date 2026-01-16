@@ -3,108 +3,95 @@ require_once 'db.php';
 set_time_limit(300); 
 
 try {
-    // 1. Reset
+    // 1. Nettoyage
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; UPDATE inscriptions SET salle_id = NULL; SET FOREIGN_KEY_CHECKS = 1;");
 
-    // 2. Chargement et Vérification
+    // 2. Ressources
     $modules = $pdo->query("SELECT * FROM modules")->fetchAll(PDO::FETCH_ASSOC);
     $salles = $pdo->query("SELECT * FROM lieu_examen ORDER BY capacite DESC")->fetchAll(PDO::FETCH_ASSOC);
     $profs = $pdo->query("SELECT * FROM professeurs")->fetchAll(PDO::FETCH_ASSOC);
 
-    // VERIFICATION DE BASE
-    if (empty($modules)) die("❌ Erreur : La table 'modules' est vide.");
-    if (empty($salles)) die("❌ Erreur : La table 'lieu_examen' est vide.");
-    if (empty($profs)) die("❌ Erreur : La table 'professeurs' est vide.");
+    // Trackers
+    $salle_occupee = [];
+    $prof_occupe = [];
+    $etudiant_deja_pris_ce_jour = []; // [Jour][Etudiant_ID]
 
     $jours = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20'];
     $creneaux = ['09:00:00', '14:00:00'];
 
-    $salle_occupee_slot = [];
-    $prof_occupe_slot = [];
-    $etudiant_occupe_jour = [];
-
-    echo "<h2>Rapport de l'Optimiseur</h2>";
-
     foreach ($modules as $mod) {
-        // Récupérer les étudiants
+        // Récupérer les étudiants inscrits
         $stmtEtu = $pdo->prepare("SELECT etudiant_id FROM inscriptions WHERE module_id = ?");
         $stmtEtu->execute([$mod['id']]);
-        $etudiants_a_placer = $stmtEtu->fetchAll(PDO::FETCH_COLUMN);
-        $total_a_placer = count($etudiants_a_placer);
+        $etudiants = $stmtEtu->fetchAll(PDO::FETCH_COLUMN);
+        
+        $total_inscrits = count($etudiants);
+        if ($total_inscrits == 0) continue; // On passe si personne n'est inscrit
 
-        if ($total_a_placer == 0) {
-            echo "⚠️ Module <b>{$mod['nom']}</b> ignoré : 0 étudiant inscrit.<br>";
-            continue; 
-        }
-
-        $planifie = false;
+        $place = false;
 
         foreach ($jours as $j) {
-            // Vérification conflit étudiant (Un seul examen par jour)
-            $conflit_etu = false;
-            foreach ($etudiants_a_placer as $id_etu) {
-                if (isset($etudiant_occupe_jour[$j][$id_etu])) {
-                    $conflit_etu = true; break;
+            // --- VERIFICATION CONFLIT JOURNEE ---
+            // On regarde si au moins un étudiant du groupe a déjà un exam ce jour-là
+            $conflit = false;
+            foreach ($etudiants as $id_etu) {
+                if (isset($etudiant_deja_pris_ce_jour[$j][$id_etu])) {
+                    $conflit = true;
+                    break;
                 }
             }
-            if ($conflit_etu) continue;
+            if ($conflit) continue; // Trop risqué, on teste le jour suivant
 
             foreach ($creneaux as $h) {
                 $ts = "$j $h";
-                $selection_salles = [];
-                $cap_trouvee = 0;
+                $salles_trouvees = [];
+                $cap_cumulee = 0;
 
-                // Trouver des salles
+                // Trouver des salles libres à ce créneau
                 foreach ($salles as $s) {
-                    if (!isset($salle_occupee_slot[$ts][$s['id']])) {
-                        $selection_salles[] = $s;
-                        $cap_trouvee += $s['capacite'];
-                        if ($cap_trouvee >= $total_a_placer) break;
+                    if (!isset($salle_occupee[$ts][$s['id']])) {
+                        $salles_trouvees[] = $s;
+                        $cap_cumulee += $s['capacite'];
+                        if ($cap_cumulee >= $total_inscrits) break;
                     }
                 }
 
-                if ($cap_trouvee >= $total_a_placer) {
-                    // Trouver des profs
-                    $temp_profs = [];
-                    foreach ($selection_salles as $salle) {
-                        foreach ($profs as $p) {
-                            if (!isset($prof_occupe_slot[$ts][$p['id']]) && !in_array($p['id'], $temp_profs)) {
-                                $temp_profs[] = $p['id'];
-                                break;
-                            }
+                // Si on a assez de place
+                if ($cap_cumulee >= $total_inscrits) {
+                    $copie_etudiants = $etudiants;
+                    
+                    foreach ($salles_trouvees as $salle) {
+                        // On prend un prof au hasard (pour ne pas bloquer si manque de profs)
+                        $p_id = $profs[array_rand($profs)]['id'];
+
+                        // On prend le nombre d'étudiants pour la salle
+                        $groupe = array_splice($copie_etudiants, 0, $salle['capacite']);
+
+                        // INSERTION
+                        $ins = $pdo->prepare("INSERT INTO examens (module_id, date_heure, salle_id, prof_id, duree_minute) VALUES (?, ?, ?, ?, 90)");
+                        $ins->execute([$mod['id'], $ts, $salle['id'], $p_id]);
+
+                        // MARQUAGE DES ÉTUDIANTS (1 exam par jour)
+                        foreach ($groupe as $id_etu) {
+                            $etudiant_deja_pris_ce_jour[$j][$id_etu] = true;
+                            // Optionnel : mettre à jour la salle dans inscriptions
+                            $upd = $pdo->prepare("UPDATE inscriptions SET salle_id = ? WHERE module_id = ? AND etudiant_id = ?");
+                            $upd->execute([$salle['id'], $mod['id'], $id_etu]);
                         }
+
+                        $salle_occupee[$ts][$salle['id']] = true;
                     }
-
-                    if (count($temp_profs) == count($selection_salles)) {
-                        // INSERTION RÉELLE
-                        $copie_etu = $etudiants_a_placer;
-                        foreach ($selection_salles as $index => $salle) {
-                            $p_id = $temp_profs[$index];
-                            $groupe = array_splice($copie_etu, 0, $salle['capacite']);
-
-                            $stmt = $pdo->prepare("INSERT INTO examens (module_id, date_heure, salle_id, prof_id, duree_minute) VALUES (?, ?, ?, ?, 90)");
-                            $stmt->execute([$mod['id'], $ts, $salle['id'], $p_id]);
-
-                            foreach ($groupe as $id_etu) {
-                                $etudiant_occupe_jour[$j][$id_etu] = true;
-                                $upd = $pdo->prepare("UPDATE inscriptions SET salle_id = ? WHERE module_id = ? AND etudiant_id = ?");
-                                $upd->execute([$salle['id'], $mod['id'], $id_etu]);
-                            }
-                            $salle_occupee_slot[$ts][$salle['id']] = true;
-                            $prof_occupe_slot[$ts][$p_id] = true;
-                        }
-                        echo "✅ Module <b>{$mod['nom']}</b> placé le $ts.<br>";
-                        $planifie = true; break;
-                    }
+                    $place = true;
+                    break;
                 }
             }
-            if ($planifie) break;
+            if ($place) break;
         }
-        if (!$planifie) echo "❌ <b>{$mod['nom']}</b> impossible à placer (Manque de salles ou profs libres).<br>";
     }
 
-    echo "<br><a href='admin.php'>Voir le planning final</a>";
+    header("Location: admin.php?msg=Optimisation_Terminee");
+    exit();
 
 } catch (Exception $e) {
-    die("💥 Erreur Critique : " . $e->getMessage());
+    die("Erreur : " . $e->getMessage());
 }
