@@ -12,20 +12,21 @@ $user_id = $_SESSION['user_id'];
 try {
     // On ajoute la condition i.salle_id = e.salle_id dans le JOIN
     // Cela garantit que l'étudiant ne voit QUE sa salle assignée
-$query = "SELECT ANY_VALUE(f.nom) as formation, 
+$query = "SELECT f.nom as formation, 
                  m.nom as module, 
-                 ANY_VALUE(e.date_heure) as date_heure, 
-                 ANY_VALUE(l.nom) as salle, 
-                 ANY_VALUE(l.batiment) as batiment
+                 e.date_heure, 
+                 l.nom as salle, 
+                 l.batiment
           FROM inscriptions i 
           JOIN modules m ON i.module_id = m.id 
-          JOIN formations f ON m.formation_id = f.id
-          JOIN departements d ON f.dept_id = d.id
-          JOIN examens e ON m.id = e.module_id 
+          JOIN formations f ON m.formation_id = f.id 
+          JOIN departements d ON f.dept_id = d.id 
+          /* On lie l'étudiant DIRECTEMENT à sa salle et son examen */
+          JOIN examens e ON (m.id = e.module_id AND i.salle_id = e.salle_id) 
           JOIN lieu_examen l ON e.salle_id = l.id 
-          WHERE i.etudiant_id = ? AND d.etat_planning = 'valide'
-          GROUP BY m.nom -- On groupe par le nom du module pour n'avoir qu'une ligne
-          ORDER BY ANY_VALUE(e.date_heure) ASC";
+          WHERE i.etudiant_id = ? 
+          AND d.etat_planning = 'valide'
+          ORDER BY e.date_heure ASC";
     $stmt = $pdo->prepare($query);
     $stmt->execute([$user_id]);
     $examens = $stmt->fetchAll();
