@@ -1,29 +1,34 @@
 <?php
 session_start();
-// AJOUTE CES LIGNES ICI :
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 require_once 'db.php';
 set_time_limit(600); 
 
-try {
-    // 1. Nettoyage
-    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; SET FOREIGN_KEY_CHECKS = 1;");
-    $pdo->exec("UPDATE inscriptions SET salle_id = NULL; UPDATE departements SET etat_planning = 'en_attente';");
+// On active l'affichage des erreurs pour comprendre le blocage
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
+try {
+    // 1. Nettoyage initial (HORS TRANSACTION pour éviter les verrous)
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+    $pdo->exec("TRUNCATE TABLE examens;");
+    $pdo->exec("UPDATE inscriptions SET salle_id = NULL;");
+    $pdo->exec("UPDATE departements SET etat_planning = 'en_attente';");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+
+    // 2. Début de la transaction
     $pdo->beginTransaction();
 
-    // 2. Chargement des ressources
     $modules = $pdo->query("SELECT * FROM modules")->fetchAll(PDO::FETCH_ASSOC);
     $salles = $pdo->query("SELECT * FROM lieu_examen ORDER BY capacite DESC")->fetchAll(PDO::FETCH_ASSOC);
-    $profs_data = $pdo->query("SELECT id, departement_id FROM professeurs")->fetchAll(PDO::FETCH_ASSOC);
+    $profs = $pdo->query("SELECT id FROM professeurs")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Initialisation des compteurs de surveillance (tous à 0 au début)
-    $suivi_missions = [];
-    foreach ($profs_data as $p) {
-        $suivi_missions[$p['id']] = 0;
+    if (empty($profs) || empty($salles)) {
+        throw new Exception("Erreur : Table professeurs ou lieu_examen vide !");
     }
+
+    // Compteur pour l'équité des profs
+    $suivi_missions = [];
+    foreach ($profs as $p) { $suivi_missions[$p['id']] = 0; }
 
     $jours = ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20'];
     $creneaux = ['09:00:00', '14:00:00'];
@@ -32,6 +37,8 @@ try {
     $prof_occupe_slot = [];
     $prof_count_jour = [];
     $etudiant_occupe_jour = [];
+
+    $examens_crees = 0;
 
     foreach ($modules as $mod) {
         $stmtEtu = $pdo->prepare("SELECT etudiant_id FROM inscriptions WHERE module_id = ?");
@@ -45,9 +52,14 @@ try {
         shuffle($jours);
 
         foreach ($jours as $j) {
-            // Contrainte Etudiant (1/jour)
-            $deja_pris = array_intersect($etudiants, array_keys($etudiant_occupe_jour[$j] ?? []));
-            if (!empty($deja_pris)) continue;
+            // Contrainte 1 exam/jour/etudiant
+            $conflit_etu = false;
+            foreach ($etudiants as $id_etu) {
+                if (isset($etudiant_occupe_jour[$j][$id_etu])) {
+                    $conflit_etu = true; break;
+                }
+            }
+            if ($conflit_etu) continue;
 
             foreach ($creneaux as $h) {
                 $ts = "$j $h";
@@ -61,19 +73,12 @@ try {
                 }
 
                 if ($cap >= $nb_etu) {
-                    
-                    // --- LOGIQUE D'ÉQUITÉ DES PROFS ---
-                    // On trie les profs pour prendre celui qui a le MOINS de missions au total
-                    asort($suivi_missions); 
-                    
+                    // Équité des profs : on trie par nombre de missions
+                    asort($suivi_missions);
                     $p_id = null;
-                    foreach ($suivi_missions as $id_prof => $nb_missions) {
-                        $c_jour = $prof_count_jour[$j][$id_prof] ?? 0;
-                        
-                        // Vérifier : Max 3/jour ET Libre sur ce créneau
-                        if ($c_jour < 3 && !isset($prof_occupe_slot[$ts][$id_prof])) {
-                            $p_id = $id_prof;
-                            break;
+                    foreach ($suivi_missions as $id_prof => $nb) {
+                        if (($prof_count_jour[$j][$id_prof] ?? 0) < 3 && !isset($prof_occupe_slot[$ts][$id_prof])) {
+                            $p_id = $id_prof; break;
                         }
                     }
 
@@ -90,15 +95,12 @@ try {
                             
                             $ins = $pdo->prepare("INSERT INTO examens (module_id, date_heure, salle_id, prof_id, duree_minute) VALUES (?, ?, ?, ?, 90)");
                             $ins->execute([$mod['id'], $ts, $sc['id'], $p_id]);
-                            
                             $salle_occupee[$ts][$sc['id']] = true;
+                            $examens_crees++;
                         }
-                        
-                        // Mise à jour des compteurs pour l'équité
                         $prof_occupe_slot[$ts][$p_id] = true;
                         $prof_count_jour[$j][$p_id] = ($prof_count_jour[$j][$p_id] ?? 0) + 1;
-                        $suivi_missions[$p_id]++; // On incrémente le nombre total de missions
-                        
+                        $suivi_missions[$p_id]++;
                         $place = true; break;
                     }
                 }
@@ -106,9 +108,12 @@ try {
             if ($place) break;
         }
     }
+
     $pdo->commit();
-    echo "Succès";
+    // On renvoie un message clair pour le debug
+    echo "Succès : " . $examens_crees . " lignes créées.";
+
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    echo "Erreur : " . $e->getMessage();
+    echo "Erreur Fatale : " . $e->getMessage();
 }
