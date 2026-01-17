@@ -8,20 +8,26 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 }
 
 try {
+    // 1. Nettoyage (Ces commandes ferment souvent les transactions automatiquement)
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+    $pdo->exec("TRUNCATE TABLE examens");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+
+    // 2. Mises à jour (DML - supportent bien les transactions)
     $pdo->beginTransaction();
-
-    // 1. Vider les examens
-    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; SET FOREIGN_KEY_CHECKS = 1;");
-
-    // 2. Réinitialiser les places étudiants
+    
     $pdo->exec("UPDATE inscriptions SET salle_id = NULL");
-
-    // 3. Remettre les départements en attente de validation
     $pdo->exec("UPDATE departements SET etat_planning = 'en_attente'");
 
     $pdo->commit();
+    
     header("Location: admin.php?msg=supprime");
+    exit();
+
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
+    // On ne fait le rollback que si une transaction est vraiment active
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     die("Erreur : " . $e->getMessage());
 }
