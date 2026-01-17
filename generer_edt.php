@@ -1,13 +1,21 @@
 <?php
 session_start();
 require_once 'db.php';
-set_time_limit(180); 
+
+// Augmenter le temps d'exécution pour les gros volumes
+set_time_limit(300); 
 
 try {
-    // Nettoyage des anciens examens et réinitialisation des salles dans les inscriptions
+    // 1. Démarrer une transaction pour la vitesse et la sécurité
+    $pdo->beginTransaction();
+
+    echo "<h2>🚀 Optimisation en cours...</h2>";
+
+    // Nettoyage complet
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; SET FOREIGN_KEY_CHECKS = 1;");
     $pdo->exec("UPDATE inscriptions SET salle_id = NULL");
 
+    // Chargement des données en mémoire
     $modules = $pdo->query("SELECT * FROM modules")->fetchAll(PDO::FETCH_ASSOC);
     $salles_prioritaires = $pdo->query("SELECT * FROM lieu_examen ORDER BY capacite DESC")->fetchAll(PDO::FETCH_ASSOC);
     $profs = $pdo->query("SELECT * FROM professeurs")->fetchAll(PDO::FETCH_ASSOC);
@@ -19,36 +27,31 @@ try {
     $prof_occupe_slot = [];
     $etudiant_occupe_jour = [];
 
-    echo "<h2>Traitement de l'Optimisation</h2>";
-
     foreach ($modules as $mod) {
-        // 1. On récupère les vrais étudiants inscrits
+        // Récupérer les étudiants inscrits au module
         $stmtEtu = $pdo->prepare("SELECT etudiant_id FROM inscriptions WHERE module_id = ?");
         $stmtEtu->execute([$mod['id']]);
         $etudiants_a_placer = $stmtEtu->fetchAll(PDO::FETCH_COLUMN);
         
-        if (empty($etudiants_a_placer)) continue; // On passe si aucun étudiant
+        if (empty($etudiants_a_placer)) continue;
 
         $total_a_placer = count($etudiants_a_placer);
         $planifie = false;
         shuffle($jours); 
 
         foreach ($jours as $j) {
-            $conflit_etudiant = false;
+            // Vérification rapide de conflit (on saute si trop d'étudiants sont déjà occupés ce jour)
+            $conflit_count = 0;
             foreach ($etudiants_a_placer as $id_etu) {
-                if (isset($etudiant_occupe_jour[$j][$id_etu])) {
-                    $conflit_etudiant = true;
-                    break;
-                }
+                if (isset($etudiant_occupe_jour[$j][$id_etu])) $conflit_count++;
             }
-            if ($conflit_etudiant) continue; 
+            if ($conflit_count > ($total_a_placer * 0.1)) continue; 
 
             foreach ($creneaux_base as $h) {
                 $ts = "$j $h";
                 $selection_salles = [];
                 $cap_cumulee = 0;
 
-                // 3. Sélection des salles disponibles
                 foreach ($salles_prioritaires as $s) {
                     if (!isset($salle_occupee_slot[$ts][$s['id']])) {
                         $selection_salles[] = $s;
@@ -61,7 +64,7 @@ try {
                     $copie_etudiants = $etudiants_a_placer;
                     
                     foreach ($selection_salles as $salle_choisie) {
-                        // Choix du prof
+                        // Attribution Professeur
                         $p_id = null;
                         foreach ($profs as $p) {
                             if (!isset($prof_occupe_slot[$ts][$p['id']])) {
@@ -70,17 +73,25 @@ try {
                         }
                         if (!$p_id) $p_id = $profs[array_rand($profs)]['id'];
 
-                        // Découpage du groupe pour cette salle
+                        // Extraction du groupe pour cette salle
                         $groupe_salle = array_splice($copie_etudiants, 0, $salle_choisie['capacite']);
                         
-                        // --- ACTION CRUCIALE : On lie chaque étudiant à sa salle ---
-                        $updInsc = $pdo->prepare("UPDATE inscriptions SET salle_id = ? WHERE etudiant_id = ? AND module_id = ?");
-                        foreach ($groupe_salle as $id_etu) {
-                            $updInsc->execute([$salle_choisie['id'], $id_etu, $mod['id']]);
-                            $etudiant_occupe_jour[$j][$id_etu] = true;
+                        if (!empty($groupe_salle)) {
+                            // --- OPTIMISATION : UPDATE PAR LOT (BATCH) ---
+                            $placeholders = implode(',', array_fill(0, count($groupe_salle), '?'));
+                            $sqlUpd = "UPDATE inscriptions SET salle_id = ? WHERE module_id = ? AND etudiant_id IN ($placeholders)";
+                            $updStmt = $pdo->prepare($sqlUpd);
+                            
+                            $params = array_merge([$salle_choisie['id'], $mod['id']], $groupe_salle);
+                            $updStmt->execute($params);
+
+                            // Marquer les étudiants comme occupés
+                            foreach ($groupe_salle as $id_etu) {
+                                $etudiant_occupe_jour[$j][$id_etu] = true;
+                            }
                         }
 
-                        // Insertion de l'examen
+                        // Création de l'examen
                         $ins = $pdo->prepare("INSERT INTO examens (module_id, date_heure, salle_id, prof_id, duree_minute) VALUES (?, ?, ?, ?, 90)");
                         $ins->execute([$mod['id'], $ts, $salle_choisie['id'], $p_id]);
 
@@ -88,17 +99,23 @@ try {
                         $prof_occupe_slot[$ts][$p_id] = true;
                     }
                     
-                    echo "✅ Module <b>{$mod['nom']}</b> planifié (Salles : ".count($selection_salles).")<br>";
+                    echo "✅ <b>{$mod['nom']}</b> : Planifié le $j à $h<br>";
                     $planifie = true;
                     break; 
                 }
             }
             if ($planifie) break;
         }
-        if (!$planifie) echo "❌ Module <b>{$mod['nom']}</b> : Pas de place.<br>";
+        if (!$planifie) echo "<span style='color:red;'>❌ {$mod['nom']} : Échec (Pas de salle/créneau)</span><br>";
     }
-    echo "<p>Optimisation terminée. <a href='admin.php'>Voir les résultats</a></p>";
+
+    // 2. Valider toutes les modifications d'un coup
+    $pdo->commit();
+    echo "<h3>🎉 Optimisation terminée avec succès !</h3>";
+    echo "<a href='admin.php' style='padding:10px; background:#3b82f6; color:white; text-decoration:none; border-radius:5px;'>Retour au Dashboard</a>";
 
 } catch (Exception $e) {
-    die("Erreur fatale : " . $e->getMessage());
+    // Annuler tout en cas d'erreur pour ne pas corrompre les données
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    die("<h2 style='color:red;'>Erreur : " . $e->getMessage() . "</h2>");
 }
