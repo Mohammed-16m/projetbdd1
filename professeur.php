@@ -2,14 +2,16 @@
 session_start();
 require_once 'db.php';
 
-// Vérifie que le rôle est identique à celui stocké lors du login
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'prof') {
-    header("Location: login.php"); exit();
+// Sécurité : accepte les deux versions du mot-clé rôle
+if (!isset($_SESSION['role']) || ($_SESSION['role'] !== 'prof' && $_SESSION['role'] !== 'professeur')) {
+    header("Location: login.php"); 
+    exit();
 }
 
 $user_id = $_SESSION['user_id'];
 
 try {
+    // Requête qui fonctionne même si le département est validé
     $query = "SELECT e.date_heure, m.nom as module, l.nom as salle, l.batiment
               FROM examens e 
               JOIN modules m ON e.module_id = m.id 
@@ -26,7 +28,6 @@ try {
     die("Erreur : " . $e->getMessage()); 
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -40,7 +41,6 @@ try {
         <a href="enseignant.php" class="active">📝 Surveillances</a>
         <a href="logout.php" class="logout">Déconnexion</a>
     </div>
-
     <div class="main-content">
         <div class="header">
             <h1>Planning de Surveillance</h1>
@@ -51,11 +51,7 @@ try {
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr>
-                            <th>Date & Heure</th>
-                            <th>Module</th>
-                            <th>Lieu</th>
-                        </tr>
+                        <tr><th>Date & Heure</th><th>Module</th><th>Lieu</th></tr>
                     </thead>
                     <tbody>
                         <?php foreach($surveillances as $s): ?>
@@ -74,7 +70,7 @@ try {
         <?php else: ?>
             <div class="table-container" style="text-align:center; padding:50px;">
                 <h2 style="color:#64748b;">⏳ Aucune surveillance</h2>
-                <p>Votre planning de surveillance sera visible une fois validé par le chef de département.</p>
+                <p>Votre planning sera visible dès que le chef de département l'aura validé.</p>
             </div>
         <?php endif; ?>
     </div>
