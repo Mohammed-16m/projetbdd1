@@ -2,23 +2,29 @@
 session_start();
 require_once 'db.php';
 
+// Vérifie que le rôle est identique à celui stocké lors du login
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'prof') {
     header("Location: login.php"); exit();
 }
 
 $user_id = $_SESSION['user_id'];
 
-$query = "SELECT e.date_heure, m.nom as module, l.nom as salle, d.etat_planning
-          FROM examens e 
-          JOIN modules m ON e.module_id = m.id 
-          JOIN formations f ON m.formation_id = f.id
-          JOIN departements d ON f.dept_id = d.id
-          JOIN lieu_examen l ON e.salle_id = l.id 
-          WHERE e.prof_id = ? AND d.etat_planning = 'valide'";
+try {
+    $query = "SELECT e.date_heure, m.nom as module, l.nom as salle, l.batiment
+              FROM examens e 
+              JOIN modules m ON e.module_id = m.id 
+              JOIN formations f ON m.formation_id = f.id
+              JOIN departements d ON f.dept_id = d.id
+              JOIN lieu_examen l ON e.salle_id = l.id 
+              WHERE e.prof_id = ? AND d.etat_planning = 'valide'
+              ORDER BY e.date_heure ASC";
 
-$stmt = $pdo->prepare($query);
-$stmt->execute([$user_id]);
-$surveillances = $stmt->fetchAll();
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$user_id]);
+    $surveillances = $stmt->fetchAll();
+} catch (Exception $e) { 
+    die("Erreur : " . $e->getMessage()); 
+}
 ?>
 
 <!DOCTYPE html>
@@ -36,25 +42,39 @@ $surveillances = $stmt->fetchAll();
     </div>
 
     <div class="main-content">
-        <h1>Planning de Surveillance</h1>
+        <div class="header">
+            <h1>Planning de Surveillance</h1>
+            <div class="badge" style="color:#10b981; border-color:#10b981;">👨‍🏫 Professeur</div>
+        </div>
+
         <?php if (count($surveillances) > 0): ?>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>Date</th><th>Module</th><th>Salle</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Date & Heure</th>
+                            <th>Module</th>
+                            <th>Lieu</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         <?php foreach($surveillances as $s): ?>
                         <tr>
-                            <td><?php echo date('d/m H:i', strtotime($s['date_heure'])); ?></td>
-                            <td><?php echo $s['module']; ?></td>
-                            <td><?php echo $s['salle']; ?></td>
+                            <td><b><?php echo date('d/m/2026 à H:i', strtotime($s['date_heure'])); ?></b></td>
+                            <td><?php echo htmlspecialchars($s['module']); ?></td>
+                            <td>
+                                <span class="badge"><?php echo htmlspecialchars($s['salle']); ?></span>
+                                <small><?php echo htmlspecialchars($s['batiment']); ?></small>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         <?php else: ?>
-            <div class="card" style="text-align:center; padding:50px;">
-                <p>Aucune surveillance validée pour le moment.</p>
+            <div class="table-container" style="text-align:center; padding:50px;">
+                <h2 style="color:#64748b;">⏳ Aucune surveillance</h2>
+                <p>Votre planning de surveillance sera visible une fois validé par le chef de département.</p>
             </div>
         <?php endif; ?>
     </div>
