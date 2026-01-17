@@ -10,35 +10,37 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'etudiant') {
 $user_id = $_SESSION['user_id'];
 
 try {
-    // On ajoute la condition i.salle_id = e.salle_id dans le JOIN
-    // Cela garantit que l'étudiant ne voit QUE sa salle assignée
-$query = "SELECT f.nom as formation, 
-                 m.nom as module, 
-                 e.date_heure, 
-                 l.nom as salle, 
-                 l.batiment
-          FROM inscriptions i 
-          JOIN modules m ON i.module_id = m.id 
-          JOIN formations f ON m.formation_id = f.id 
-          JOIN departements d ON f.dept_id = d.id 
-          /* On lie l'étudiant DIRECTEMENT à sa salle et son examen */
-          JOIN examens e ON (m.id = e.module_id AND i.salle_id = e.salle_id) 
-          JOIN lieu_examen l ON e.salle_id = l.id 
-          WHERE i.etudiant_id = ? 
-          AND d.etat_planning = 'valide'
-          ORDER BY e.date_heure ASC";
+    // 2. Requête STRICTE : 
+    // Elle ne renvoie un résultat QUE SI l'étudiant a une 'salle_id' dans sa ligne d'inscription
+    // qui correspond à une salle d'examen planifiée.
+    $query = "SELECT f.nom as formation, 
+                     m.nom as module, 
+                     e.date_heure, 
+                     l.nom as salle, 
+                     l.batiment
+              FROM inscriptions i 
+              JOIN modules m ON i.module_id = m.id 
+              JOIN formations f ON m.formation_id = f.id 
+              JOIN departements d ON f.dept_id = d.id 
+              /* LA CLÉ EST ICI : On lie l'inscription précise à l'examen précis */
+              JOIN examens e ON (m.id = e.module_id AND i.salle_id = e.salle_id) 
+              JOIN lieu_examen l ON e.salle_id = l.id 
+              WHERE i.etudiant_id = ? 
+              AND d.etat_planning = 'valide'
+              ORDER BY e.date_heure ASC";
+              
     $stmt = $pdo->prepare($query);
     $stmt->execute([$user_id]);
     $examens = $stmt->fetchAll();
 
-} catch (Exception $e) { die($e->getMessage()); }
+} catch (Exception $e) { die("Erreur : " . $e->getMessage()); }
 ?>
 
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Étudiant - Mon Planning</title>
+    <title>Mon Planning - Espace Étudiant</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -81,8 +83,8 @@ $query = "SELECT f.nom as formation,
             </div>
         <?php else: ?>
             <div class="table-container" style="text-align:center; padding:50px;">
-                <h2 style="color:#f59e0b;">⏳ Planning en attente</h2>
-                <p>Votre emploi du temps n'a pas encore été publié ou aucune inscription n'a été trouvée.</p>
+                <h2 style="color:#f59e0b;">⏳ Planning indisponible</h2>
+                <p>Soit le planning n'est pas encore validé, soit votre salle d'examen n'a pas encore été affectée.</p>
             </div>
         <?php endif; ?>
     </div>
