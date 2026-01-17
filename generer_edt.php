@@ -6,14 +6,21 @@ require_once 'db.php';
 set_time_limit(300); 
 
 try {
-    // 1. Démarrer une transaction pour la vitesse et la sécurité
-    $pdo->beginTransaction();
-
     echo "<h2>🚀 Optimisation en cours...</h2>";
 
-    // Nettoyage complet
-    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; SET FOREIGN_KEY_CHECKS = 1;");
+    // --- ÉTAPE 0 : RÉINITIALISATION CRITIQUE (Hors Transaction pour plus de sécurité) ---
+    // On repasse TOUS les départements en 'en_attente' dès le début
+    // Cela force le Chef de Département à valider le nouveau planning
+    $pdo->exec("UPDATE departements SET etat_planning = 'en_attente'");
+    
+    // On vide les attributions de salles des étudiants
     $pdo->exec("UPDATE inscriptions SET salle_id = NULL");
+
+    // --- ÉTAPE 1 : DÉBUT DU TRAITEMENT DES DONNÉES ---
+    $pdo->beginTransaction();
+
+    // Nettoyage de la table des examens (Truncate est plus rapide que Delete)
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE examens; SET FOREIGN_KEY_CHECKS = 1;");
 
     // Chargement des données en mémoire
     $modules = $pdo->query("SELECT * FROM modules")->fetchAll(PDO::FETCH_ASSOC);
@@ -40,7 +47,7 @@ try {
         shuffle($jours); 
 
         foreach ($jours as $j) {
-            // Vérification rapide de conflit (on saute si trop d'étudiants sont déjà occupés ce jour)
+            // Vérification de conflit étudiant (seuil de 10% de chevauchement max)
             $conflit_count = 0;
             foreach ($etudiants_a_placer as $id_etu) {
                 if (isset($etudiant_occupe_jour[$j][$id_etu])) $conflit_count++;
@@ -52,6 +59,7 @@ try {
                 $selection_salles = [];
                 $cap_cumulee = 0;
 
+                // Trouver les salles disponibles pour ce créneau
                 foreach ($salles_prioritaires as $s) {
                     if (!isset($salle_occupee_slot[$ts][$s['id']])) {
                         $selection_salles[] = $s;
@@ -60,24 +68,26 @@ try {
                     }
                 }
 
+                // Si on a assez de place, on place l'examen
                 if ($cap_cumulee >= $total_a_placer) {
                     $copie_etudiants = $etudiants_a_placer;
                     
                     foreach ($selection_salles as $salle_choisie) {
-                        // Attribution Professeur
+                        // Attribution d'un professeur disponible
                         $p_id = null;
                         foreach ($profs as $p) {
                             if (!isset($prof_occupe_slot[$ts][$p['id']])) {
                                 $p_id = $p['id']; break;
                             }
                         }
+                        // Si aucun prof n'est libre, on en prend un au hasard (sécurité)
                         if (!$p_id) $p_id = $profs[array_rand($profs)]['id'];
 
-                        // Extraction du groupe pour cette salle
+                        // Extraction des étudiants pour remplir cette salle
                         $groupe_salle = array_splice($copie_etudiants, 0, $salle_choisie['capacite']);
                         
                         if (!empty($groupe_salle)) {
-                            // --- OPTIMISATION : UPDATE PAR LOT (BATCH) ---
+                            // UPDATE PAR LOT (BATCH) pour les inscriptions
                             $placeholders = implode(',', array_fill(0, count($groupe_salle), '?'));
                             $sqlUpd = "UPDATE inscriptions SET salle_id = ? WHERE module_id = ? AND etudiant_id IN ($placeholders)";
                             $updStmt = $pdo->prepare($sqlUpd);
@@ -85,16 +95,17 @@ try {
                             $params = array_merge([$salle_choisie['id'], $mod['id']], $groupe_salle);
                             $updStmt->execute($params);
 
-                            // Marquer les étudiants comme occupés
+                            // Marquer les étudiants comme occupés ce jour-là
                             foreach ($groupe_salle as $id_etu) {
                                 $etudiant_occupe_jour[$j][$id_etu] = true;
                             }
                         }
 
-                        // Création de l'examen
+                        // Création de l'examen en base
                         $ins = $pdo->prepare("INSERT INTO examens (module_id, date_heure, salle_id, prof_id, duree_minute) VALUES (?, ?, ?, ?, 90)");
                         $ins->execute([$mod['id'], $ts, $salle_choisie['id'], $p_id]);
 
+                        // Marquer salle et prof comme occupés pour ce créneau
                         $salle_occupee_slot[$ts][$salle_choisie['id']] = true;
                         $prof_occupe_slot[$ts][$p_id] = true;
                     }
@@ -106,16 +117,17 @@ try {
             }
             if ($planifie) break;
         }
-        if (!$planifie) echo "<span style='color:red;'>❌ {$mod['nom']} : Échec (Pas de salle/créneau)</span><br>";
+        if (!$planifie) echo "<span style='color:red;'>❌ {$mod['nom']} : Échec (Pas de ressources disponibles)</span><br>";
     }
 
-    // 2. Valider toutes les modifications d'un coup
+    // --- ÉTAPE 2 : VALIDATION FINALE ---
     $pdo->commit();
-    echo "<h3>🎉 Optimisation terminée avec succès !</h3>";
-    echo "<a href='admin.php' style='padding:10px; background:#3b82f6; color:white; text-decoration:none; border-radius:5px;'>Retour au Dashboard</a>";
+    echo "<hr><h3>🎉 Optimisation terminée avec succès !</h3>";
+    echo "<p>L'état de tous les départements a été réinitialisé. Les chefs doivent valider l'EDT.</p>";
+    echo "<a href='admin.php' style='display:inline-block; padding:12px 25px; background:#4361ee; color:white; text-decoration:none; border-radius:10px; font-weight:bold;'>Retour au Dashboard</a>";
 
 } catch (Exception $e) {
-    // Annuler tout en cas d'erreur pour ne pas corrompre les données
+    // En cas d'erreur, on annule tout ce qui était dans la transaction
     if ($pdo->inTransaction()) $pdo->rollBack();
-    die("<h2 style='color:red;'>Erreur : " . $e->getMessage() . "</h2>");
+    die("<h2 style='color:red;'>Erreur critique : " . $e->getMessage() . "</h2>");
 }
