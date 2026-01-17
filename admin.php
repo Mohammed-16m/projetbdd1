@@ -90,7 +90,7 @@ try {
                         🎲 Générer Aléatoire
                     </button>
                     
-                    <button class="btn btn-primary" onclick="lancerAction('optimisation.php', 'Optimisation des contraintes...')">
+                    <button class="btn btn-primary" onclick="lancerAction('generer_edt.php', 'Optimisation des contraintes...')">
                         ⚡ Lancer l'Optimisation
                     </button>
                 <?php else: ?>
