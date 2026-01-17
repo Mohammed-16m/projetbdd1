@@ -5,17 +5,13 @@ require_once 'db.php';
 // 1. SÉCURITÉ : Admin et Doyen autorisés
 $roles_autorises = ['admin', 'doyen'];
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $roles_autorises)) {
-    header("Location: login.php"); // Changé en .php
+    header("Location: login.php");
     exit();
 }
 
 $role_actuel = $_SESSION['role'];
 
-// 2. TRACAGE : On identifie qui regarde quoi
-
-
-
-// 3. RÉCUPÉRATION DES DONNÉES
+// 2. RÉCUPÉRATION DES DONNÉES POUR LE DASHBOARD
 try {
     $total_inscrits = $pdo->query("SELECT COUNT(*) FROM etudiants")->fetchColumn();
     $total_examens = $pdo->query("SELECT COUNT(*) FROM examens")->fetchColumn();
@@ -40,10 +36,25 @@ try {
     <title><?php echo ($role_actuel === 'doyen') ? "Planning Global" : "Administration"; ?> - ExamOptima</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Style pour différencier les deux boutons de génération */
+        /* Styles des boutons d'action */
         .btn-warning { background: #f59e0b; color: white; border: none; }
         .btn-warning:hover { background: #d97706; transform: scale(1.03); }
-        .header-actions { display: flex; gap: 10px; align-items: center; }
+        
+        /* Nouveau style pour le bouton supprimer */
+        .btn-danger { background: #ef4444; color: white; border: none; }
+        .btn-danger:hover { background: #dc2626; transform: scale(1.03); }
+
+        .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -71,10 +82,15 @@ try {
 
             <div class="header-actions">
                 <?php if ($role_actuel === 'admin'): ?>
+                    <button class="btn btn-danger" onclick="confirmerSuppression()">
+                        🗑️ Supprimer l'EDT
+                    </button>
+
                     <button class="btn btn-warning" onclick="lancerAction('generer_conflits.php', 'Création d\'un planning brut...')">
                         🎲 Générer Aléatoire
                     </button>
-                    <button class="btn btn-primary" onclick="lancerAction('generer_edt.php', 'Optimisation des contraintes...')">
+                    
+                    <button class="btn btn-primary" onclick="lancerAction('optimisation.php', 'Optimisation des contraintes...')">
                         ⚡ Lancer l'Optimisation
                     </button>
                 <?php else: ?>
@@ -82,6 +98,10 @@ try {
                 <?php endif; ?>
             </div>
         </div>
+
+        <?php if(isset($_GET['msg']) && $_GET['msg'] == 'supprime'): ?>
+            <div class="alert-success">✅ L'emploi du temps et les validations ont été réinitialisés avec succès.</div>
+        <?php endif; ?>
 
         <div id="progress-container" style="display:none; margin-bottom: 30px; background: var(--card-bg); padding: 20px; border-radius: 15px;">
             <p id="statusText" style="margin-bottom:10px; font-weight: bold;">Initialisation...</p>
@@ -121,7 +141,7 @@ try {
                 </thead>
                 <tbody>
                     <?php if(empty($examens)): ?>
-                        <tr><td colspan="4" style="text-align:center; padding:50px;">Aucune donnée. Cliquez sur un bouton de génération.</td></tr>
+                        <tr><td colspan="4" style="text-align:center; padding:50px;">Aucune donnée. Cliquez sur l'un des boutons de génération.</td></tr>
                     <?php else: ?>
                         <?php foreach($examens as $ex): ?>
                         <tr>
@@ -138,7 +158,14 @@ try {
     </div>
 
     <script>
-    // Fonction unifiée pour gérer les deux types de générations
+    // Fonction de confirmation pour la suppression
+    function confirmerSuppression() {
+        if (confirm("⚠️ ATTENTION : Cela va effacer tout le planning, retirer les places des étudiants et réinitialiser les validations des chefs de département. Continuer ?")) {
+            window.location.href = 'supprimer_edt.php';
+        }
+    }
+
+    // Fonction unifiée pour gérer les générations (Optimisation / Aléatoire)
     function lancerAction(fichierPhp, messageInitial) {
         const container = document.getElementById('progress-container');
         const bar = document.getElementById('algo-progress');
@@ -155,17 +182,21 @@ try {
             if (progress >= 90) {
                 clearInterval(interval);
                 fetch(fichierPhp)
-                    .then(() => {
+                    .then(response => {
                         bar.style.width = "100%";
                         status.innerText = "Terminé ! Rechargement...";
-                        setTimeout(() => window.location.reload(), 800);
+                        setTimeout(() => window.location.href = 'admin.php', 800);
+                    })
+                    .catch(err => {
+                        alert("Erreur lors de l'exécution.");
+                        container.style.display = 'none';
                     });
             }
         }, 80);
     }
 
     function filtrerTableau() {
-        let input = document.querySelector('input').value.toUpperCase();
+        let input = document.querySelector('input[type="text"]').value.toUpperCase();
         let rows = document.querySelectorAll('tbody tr');
         rows.forEach(row => {
             row.style.display = row.innerText.toUpperCase().includes(input) ? '' : 'none';
