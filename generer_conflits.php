@@ -11,7 +11,7 @@ try {
     $profs = $pdo->query("SELECT * FROM professeurs")->fetchAll(PDO::FETCH_ASSOC);
 
     // 3. Configuration restreinte pour FORCER les conflits temporels
-    // On met peu de créneaux pour que les exams se chevauchent obligatoirement
+  
     $jours = ['2026-06-15', '2026-06-16']; 
     $creneaux = ['09:00:00', '14:00:00'];
 
@@ -26,8 +26,8 @@ try {
         $heure = $creneaux[array_rand($creneaux)];
         $ts = "$date $heure";
 
-        $salle = $salles[array_rand($salles)]; // Peut tomber sur une petite salle pour un gros module !
-        $prof = $profs[array_rand($profs)];    // Peut tomber sur un prof déjà occupé !
+        $salle = $salles[array_rand($salles)]; 
+        $prof = $profs[array_rand($profs)];   
 
         // B. Insertion directe (C'est l'optimiseur qui devra diviser ce module plus tard)
         $stmt->execute([$mod['id'], $ts, $salle['id'], $prof['id'], 90]);
