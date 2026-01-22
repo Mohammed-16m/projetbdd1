@@ -13,17 +13,28 @@ $role_actuel = $_SESSION['role'];
 
 // 2. RÉCUPÉRATION DES DONNÉES POUR LE DASHBOARD
 try {
+    // Statistiques simples
     $total_inscrits = $pdo->query("SELECT COUNT(*) FROM etudiants")->fetchColumn();
     $total_examens = $pdo->query("SELECT COUNT(*) FROM examens")->fetchColumn();
     $total_salles = $pdo->query("SELECT COUNT(*) FROM lieu_examen")->fetchColumn();
 
-    $query = "SELECT e.date_heure, m.nom as module, l.nom as salle, p.nom_affichage as prof 
+    // REQUÊTE MODIFIÉE : Ajout des jointures pour Département et Spécialité
+    $query = "SELECT e.date_heure, 
+                     m.nom as module, 
+                     f.nom as specialite, 
+                     d.nom as departement,
+                     l.nom as salle, 
+                     CONCAT(p.nom, ' ', p.prenom) as prof 
               FROM examens e 
               JOIN modules m ON e.module_id = m.id 
+              JOIN formations f ON m.formation_id = f.id      -- Jointure vers Formations
+              JOIN departements d ON f.dept_id = d.id         -- Jointure vers Départements
               JOIN lieu_examen l ON e.salle_id = l.id 
               JOIN professeurs p ON e.prof_id = p.id 
-              ORDER BY e.date_heure ASC";
+              ORDER BY d.nom ASC, f.nom ASC, e.date_heure ASC"; // Tri par Dept, puis Spécialité, puis Date
+
     $examens = $pdo->query($query)->fetchAll();
+
 } catch (PDOException $e) {
     die("Erreur BDD : " . $e->getMessage());
 }
@@ -40,7 +51,6 @@ try {
         .btn-warning { background: #f59e0b; color: white; border: none; }
         .btn-warning:hover { background: #d97706; transform: scale(1.03); }
         
-        /* Nouveau style pour le bouton supprimer */
         .btn-danger { background: #ef4444; color: white; border: none; }
         .btn-danger:hover { background: #dc2626; transform: scale(1.03); }
 
@@ -54,6 +64,16 @@ try {
             margin-bottom: 20px;
             border: 1px solid rgba(16, 185, 129, 0.2);
             text-align: center;
+        }
+
+        /* Petit ajustement pour la colonne département */
+        .badge-dept {
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -127,12 +147,14 @@ try {
 
         <div class="table-container">
             <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <h3>Planning Actuel</h3>
-                <input type="text" onkeyup="filtrerTableau()" placeholder="Rechercher..." style="padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: white;">
+                <h3>Planning Détaillé</h3>
+                <input type="text" onkeyup="filtrerTableau()" placeholder="Rechercher (Module, Dept, Prof...)" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: white; width: 300px;">
             </div>
             <table>
                 <thead>
                     <tr>
+                        <th>Département</th>
+                        <th>Spécialité</th>
                         <th>Module</th>
                         <th>Date & Heure</th>
                         <th>Salle</th>
@@ -141,10 +163,13 @@ try {
                 </thead>
                 <tbody>
                     <?php if(empty($examens)): ?>
-                        <tr><td colspan="4" style="text-align:center; padding:50px;">Aucune donnée. Cliquez sur l'un des boutons de génération.</td></tr>
+                        <tr><td colspan="6" style="text-align:center; padding:50px;">Aucune donnée. Cliquez sur l'un des boutons de génération.</td></tr>
                     <?php else: ?>
                         <?php foreach($examens as $ex): ?>
                         <tr>
+                            <td><span class="badge-dept"><?php echo htmlspecialchars($ex['departement']); ?></span></td>
+                            <td style="font-size: 0.9em; color: var(--text-muted);"><?php echo htmlspecialchars($ex['specialite']); ?></td>
+                            
                             <td><b><?php echo htmlspecialchars($ex['module']); ?></b></td>
                             <td><?php echo date('d/m H:i', strtotime($ex['date_heure'])); ?></td>
                             <td><span class="badge badge-success"><?php echo htmlspecialchars($ex['salle']); ?></span></td>
