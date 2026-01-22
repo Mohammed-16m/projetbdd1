@@ -31,7 +31,7 @@ try {
                    f.nom as specialite, 
                    d.nom as departement,
                    l.nom as salle, 
-                   p.nom as prof        -- Utilisation de p.nom uniquement pour éviter l'erreur
+                   p.nom_affichage as prof        -- Utilisation de p.nom uniquement pour éviter l'erreur
             FROM examens e 
             JOIN modules m ON e.module_id = m.id 
             JOIN formations f ON m.formation_id = f.id 
