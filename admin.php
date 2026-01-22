@@ -2,38 +2,56 @@
 session_start();
 require_once 'db.php';
 
-// 1. SÉCURITÉ : Admin et Doyen autorisés
+// 1. SÉCURITÉ
 $roles_autorises = ['admin', 'doyen'];
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $roles_autorises)) {
     header("Location: login.php");
     exit();
 }
-
 $role_actuel = $_SESSION['role'];
 
-// 2. RÉCUPÉRATION DES DONNÉES POUR LE DASHBOARD
+// 2. RÉCUPÉRATION DES SPÉCIALITÉS (Pour le filtre)
 try {
-    // Statistiques simples
+    $stmt_form = $pdo->query("SELECT id, nom FROM formations ORDER BY nom ASC");
+    $liste_formations = $stmt_form->fetchAll();
+} catch (PDOException $e) {
+    $liste_formations = [];
+}
+
+// 3. CONSTRUCTION DE LA REQUÊTE PRINCIPALE AVEC FILTRE
+try {
+    // Stats globales
     $total_inscrits = $pdo->query("SELECT COUNT(*) FROM etudiants")->fetchColumn();
     $total_examens = $pdo->query("SELECT COUNT(*) FROM examens")->fetchColumn();
     $total_salles = $pdo->query("SELECT COUNT(*) FROM lieu_examen")->fetchColumn();
 
-    // REQUÊTE MODIFIÉE : Ajout des jointures pour Département et Spécialité
-    $query = "SELECT e.date_heure, 
-                     m.nom as module, 
-                     f.nom as specialite, 
-                     d.nom as departement,
-                     l.nom as salle, 
-                     CONCAT(p.nom, ' ', p.prenom) as prof 
-              FROM examens e 
-              JOIN modules m ON e.module_id = m.id 
-              JOIN formations f ON m.formation_id = f.id      -- Jointure vers Formations
-              JOIN departements d ON f.dept_id = d.id         -- Jointure vers Départements
-              JOIN lieu_examen l ON e.salle_id = l.id 
-              JOIN professeurs p ON e.prof_id = p.id 
-              ORDER BY d.nom ASC, f.nom ASC, e.date_heure ASC"; // Tri par Dept, puis Spécialité, puis Date
+    // Base de la requête
+    $sql = "SELECT e.date_heure, 
+                   m.nom as module, 
+                   f.nom as specialite, 
+                   d.nom as departement,
+                   l.nom as salle, 
+                   CONCAT(p.nom, ' ', p.prenom) as prof 
+            FROM examens e 
+            JOIN modules m ON e.module_id = m.id 
+            JOIN formations f ON m.formation_id = f.id 
+            JOIN departements d ON f.dept_id = d.id 
+            JOIN lieu_examen l ON e.salle_id = l.id 
+            JOIN professeurs p ON e.prof_id = p.id";
 
-    $examens = $pdo->query($query)->fetchAll();
+    // Vérification si un filtre est appliqué
+    $params = [];
+    if (isset($_GET['filtre_formation']) && !empty($_GET['filtre_formation'])) {
+        $sql .= " WHERE f.id = ?";
+        $params[] = $_GET['filtre_formation'];
+    }
+
+    $sql .= " ORDER BY d.nom ASC, f.nom ASC, e.date_heure ASC";
+
+    // Exécution
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $examens = $stmt->fetchAll();
 
 } catch (PDOException $e) {
     die("Erreur BDD : " . $e->getMessage());
@@ -44,36 +62,28 @@ try {
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title><?php echo ($role_actuel === 'doyen') ? "Planning Global" : "Administration"; ?> - ExamOptima</title>
+    <title>Administration - ExamOptima</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Styles des boutons d'action */
         .btn-warning { background: #f59e0b; color: white; border: none; }
-        .btn-warning:hover { background: #d97706; transform: scale(1.03); }
-        
         .btn-danger { background: #ef4444; color: white; border: none; }
-        .btn-danger:hover { background: #dc2626; transform: scale(1.03); }
-
         .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .badge-dept { background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }
         
-        .alert-success {
-            background: rgba(16, 185, 129, 0.1);
-            color: #10b981;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            text-align: center;
+        /* Style du select de filtre */
+        .filter-select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background-color: var(--card-bg);
+            color: white;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
         }
-
-        /* Petit ajustement pour la colonne département */
-        .badge-dept {
-            background: #e0e7ff;
-            color: #3730a3;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85em;
-            font-weight: bold;
+        .filter-select option {
+            background-color: #333;
+            color: white;
         }
     </style>
 </head>
@@ -96,60 +106,62 @@ try {
         
         <div class="header">
             <div>
-                <h1><?php echo ($role_actuel === 'admin') ? "Tableau de Bord Administrateur" : "Planning Global des Examens"; ?></h1>
-                <p style="color: var(--text-muted);">Session d'examens Juin 2026</p>
+                <h1>Tableau de Bord</h1>
+                <p style="color: var(--text-muted);">Session Juin 2026</p>
             </div>
 
             <div class="header-actions">
                 <?php if ($role_actuel === 'admin'): ?>
-                    <button class="btn btn-danger" onclick="confirmerSuppression()">
-                        🗑️ Supprimer l'EDT
-                    </button>
-
-                    <button class="btn btn-warning" onclick="lancerAction('generer_conflits.php', 'Création d\'un planning brut...')">
-                        🎲 Générer Aléatoire
-                    </button>
-                    
-                    <button class="btn btn-primary" onclick="lancerAction('generer_edt.php', 'Optimisation des contraintes...')">
-                        ⚡ Lancer l'Optimisation
-                    </button>
+                    <button class="btn btn-danger" onclick="confirmerSuppression()">🗑️ Reset</button>
+                    <button class="btn btn-warning" onclick="lancerAction('generer_conflits.php', 'Simulation...')">🎲 Aléatoire</button>
+                    <button class="btn btn-primary" onclick="lancerAction('generer_edt.php', 'Optimisation...')">⚡ Optimiser</button>
                 <?php else: ?>
                     <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer</button>
                 <?php endif; ?>
             </div>
         </div>
 
-        <?php if(isset($_GET['msg']) && $_GET['msg'] == 'supprime'): ?>
-            <div class="alert-success">✅ L'emploi du temps et les validations ont été réinitialisés avec succès.</div>
-        <?php endif; ?>
-
-        <div id="progress-container" style="display:none; margin-bottom: 30px; background: var(--card-bg); padding: 20px; border-radius: 15px;">
-            <p id="statusText" style="margin-bottom:10px; font-weight: bold;">Initialisation...</p>
-            <div class="progress-container" style="background: rgba(255,255,255,0.1); height: 12px; border-radius: 6px; overflow: hidden;">
+        <div id="progress-container" style="display:none; margin-bottom: 20px; background: var(--card-bg); padding: 20px; border-radius: 15px;">
+            <p id="statusText" style="margin-bottom:10px; font-weight: bold;">Traitement...</p>
+            <div style="background: rgba(255,255,255,0.1); height: 10px; border-radius: 5px;">
                 <div id="algo-progress" style="width: 0%; background: var(--primary); height: 100%; transition: 0.3s;"></div>
             </div>
         </div>
 
         <div class="stats-grid">
-            <div class="card">
-                <h3>Étudiants</h3>
-                <div class="value"><?php echo number_format($total_inscrits); ?></div>
-            </div>
-            <div class="card">
-                <h3>Examens</h3>
-                <div class="value"><?php echo $total_examens; ?></div>
-            </div>
-            <div class="card">
-                <h3>Salles</h3>
-                <div class="value"><?php echo $total_salles; ?></div>
-            </div>
+            <div class="card"><h3>Étudiants</h3><div class="value"><?php echo number_format($total_inscrits); ?></div></div>
+            <div class="card"><h3>Examens</h3><div class="value"><?php echo $total_examens; ?></div></div>
+            <div class="card"><h3>Salles</h3><div class="value"><?php echo $total_salles; ?></div></div>
         </div>
 
         <div class="table-container">
-            <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
-                <h3>Planning Détaillé</h3>
-                <input type="text" onkeyup="filtrerTableau()" placeholder="Rechercher (Module, Dept, Prof...)" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: white; width: 300px;">
+            <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <h3 style="margin:0;">
+                    <?php 
+                        if(isset($_GET['filtre_formation']) && !empty($_GET['filtre_formation'])) {
+                            echo "Planning : Spécialité filtrée";
+                        } else {
+                            echo "Planning Global";
+                        }
+                    ?>
+                </h3>
+
+                <div style="display:flex; gap: 10px;">
+                    <form method="GET" action="admin.php" style="margin:0;">
+                        <select name="filtre_formation" class="filter-select" onchange="this.form.submit()">
+                            <option value="">-- Toutes les Spécialités --</option>
+                            <?php foreach($liste_formations as $f): ?>
+                                <option value="<?php echo $f['id']; ?>" <?php if(isset($_GET['filtre_formation']) && $_GET['filtre_formation'] == $f['id']) echo 'selected'; ?>>
+                                    <?php echo htmlspecialchars($f['nom']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
+
+                    <input type="text" onkeyup="filtrerTableauJS()" placeholder="🔍 Recherche rapide..." style="padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: white;">
+                </div>
             </div>
+
             <table>
                 <thead>
                     <tr>
@@ -163,13 +175,12 @@ try {
                 </thead>
                 <tbody>
                     <?php if(empty($examens)): ?>
-                        <tr><td colspan="6" style="text-align:center; padding:50px;">Aucune donnée. Cliquez sur l'un des boutons de génération.</td></tr>
+                        <tr><td colspan="6" style="text-align:center; padding:50px; color: #888;">Aucun examen trouvé pour cette sélection.</td></tr>
                     <?php else: ?>
                         <?php foreach($examens as $ex): ?>
                         <tr>
                             <td><span class="badge-dept"><?php echo htmlspecialchars($ex['departement']); ?></span></td>
-                            <td style="font-size: 0.9em; color: var(--text-muted);"><?php echo htmlspecialchars($ex['specialite']); ?></td>
-                            
+                            <td style="color: var(--text-muted);"><?php echo htmlspecialchars($ex['specialite']); ?></td>
                             <td><b><?php echo htmlspecialchars($ex['module']); ?></b></td>
                             <td><?php echo date('d/m H:i', strtotime($ex['date_heure'])); ?></td>
                             <td><span class="badge badge-success"><?php echo htmlspecialchars($ex['salle']); ?></span></td>
@@ -183,44 +194,27 @@ try {
     </div>
 
     <script>
-    // Fonction de confirmation pour la suppression
     function confirmerSuppression() {
-        if (confirm("⚠️ ATTENTION : Cela va effacer tout le planning, retirer les places des étudiants et réinitialiser les validations des chefs de département. Continuer ?")) {
-            window.location.href = 'supprimer_edt.php';
-        }
+        if (confirm("⚠️ Tout effacer ?")) window.location.href = 'supprimer_edt.php';
     }
 
-    // Fonction unifiée pour gérer les générations (Optimisation / Aléatoire)
-    function lancerAction(fichierPhp, messageInitial) {
-        const container = document.getElementById('progress-container');
-        const bar = document.getElementById('algo-progress');
-        const status = document.getElementById('statusText');
-        
-        container.style.display = 'block';
-        status.innerText = messageInitial;
-        
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 5;
-            bar.style.width = progress + "%";
-            
-            if (progress >= 90) {
-                clearInterval(interval);
-                fetch(fichierPhp)
-                    .then(response => {
-                        bar.style.width = "100%";
-                        status.innerText = "Terminé ! Rechargement...";
-                        setTimeout(() => window.location.href = 'admin.php', 800);
-                    })
-                    .catch(err => {
-                        alert("Erreur lors de l'exécution.");
-                        container.style.display = 'none';
-                    });
-            }
-        }, 80);
+    function lancerAction(fichierPhp, message) {
+        document.getElementById('progress-container').style.display = 'block';
+        document.getElementById('statusText').innerText = message;
+        let bar = document.getElementById('algo-progress');
+        let width = 0;
+        let iv = setInterval(() => {
+            if(width >= 90) {
+                clearInterval(iv);
+                fetch(fichierPhp).then(() => {
+                    bar.style.width = "100%";
+                    setTimeout(() => window.location.href = 'admin.php', 500);
+                });
+            } else { width += 5; bar.style.width = width + "%"; }
+        }, 100);
     }
 
-    function filtrerTableau() {
+    function filtrerTableauJS() {
         let input = document.querySelector('input[type="text"]').value.toUpperCase();
         let rows = document.querySelectorAll('tbody tr');
         rows.forEach(row => {
