@@ -25,13 +25,13 @@ try {
     $total_examens = $pdo->query("SELECT COUNT(*) FROM examens")->fetchColumn();
     $total_salles = $pdo->query("SELECT COUNT(*) FROM lieu_examen")->fetchColumn();
 
-    // Base de la requête
+    // Base de la requête (CORRIGÉE : p.nom seulement)
     $sql = "SELECT e.date_heure, 
                    m.nom as module, 
                    f.nom as specialite, 
                    d.nom as departement,
                    l.nom as salle, 
-                   CONCAT(p.nom, ' ', p.prenom) as prof 
+                   p.nom as prof        -- Utilisation de p.nom uniquement pour éviter l'erreur
             FROM examens e 
             JOIN modules m ON e.module_id = m.id 
             JOIN formations f ON m.formation_id = f.id 
@@ -54,7 +54,7 @@ try {
     $examens = $stmt->fetchAll();
 
 } catch (PDOException $e) {
-    die("Erreur BDD : " . $e->getMessage());
+    die("Erreur BDD (Admin) : " . $e->getMessage());
 }
 ?>
 
